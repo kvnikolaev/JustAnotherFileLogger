@@ -11,4 +11,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy .\bin\Debug\net7.0\JAFileLogging.dll C:\Users\kvnik\source\repos\aTimeLoggerAnalyzer\ConsoleTest\bin\Debug\net7.0\&#xD;&#xA;copy .\bin\Debug\net7.0\JAFileLogging.pdb C:\Users\kvnik\source\repos\aTimeLoggerAnalyzer\ConsoleTest\bin\Debug\net7.0\" />
+  </Target>
+
 </Project>

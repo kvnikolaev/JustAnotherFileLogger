@@ -15,38 +15,36 @@ namespace JAFileLogging
     /// </summary>
     internal class FileLoggerProvider : ILoggerProvider//, ISupportExternalScope
     {
-        private readonly ConcurrentDictionary<string, FileLogger> _loggers;
         private ConcurrentDictionary<string, FileLogFormatter> _formatters;
-        private readonly FileLoggerProcessor _messageQueue;
+        protected ConcurrentDictionary<string, FileLogger> _loggers;
+        protected FileLoggerProcessor _messageQueue;
 
         private string _filePath;
-        private const string _logDirectory = "logs";
 
         public FileLoggerProvider(string? filePath /*optionMonitor*/)
         {
             if (filePath == null) throw new ArgumentException(string.Format("Argument {0} isn't supposed to be null", filePath));
-            
-            var fileStream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
-            StreamWriter file = new StreamWriter(fileStream) { AutoFlush = true };
-            StreamWriter errorFile = new StreamWriter(fileStream) { AutoFlush = true };
 
             _filePath = filePath;
             _loggers = new ConcurrentDictionary<string, FileLogger>();
             _formatters = new ConcurrentDictionary<string, FileLogFormatter>();
             _formatters.TryAdd(FileLogFormatter.Name, new FileLogFormatter());
-            _messageQueue = new FileLoggerProcessor(file, errorFile);
+            InitMessageProcessor(filePath);
 
             // options
         }
 
-        //public FileLoggerProvider() для автоматического создания файлов по дням
-        //{
-        //    var logPath = Path.Combine(AppContext.BaseDirectory, _logDirectory);
-        //    if (!Directory.Exists(logPath))
-        //        Directory.CreateDirectory(logPath);
+        protected void InitMessageProcessor(string filePath)
+        {
+            var fileStream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+            StreamWriter file = new StreamWriter(fileStream) { AutoFlush = true };
+            //StreamWriter errorFile = new StreamWriter(fileStream) { AutoFlush = true };
+            _messageQueue = new FileLoggerProcessor(file, file);
 
+            foreach (var logger in _loggers)
+                logger.Value.ChangeLoggingProcessor(_messageQueue);
+        }
 
-        //}
 
         public ILogger CreateLogger(string categoryName)
         {

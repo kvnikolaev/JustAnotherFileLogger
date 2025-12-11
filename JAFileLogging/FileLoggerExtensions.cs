@@ -25,6 +25,12 @@ namespace JAFileLogging
 
             return builder;
         }
+
+        public static ILoggingBuilder AddDailyFile(this ILoggingBuilder builder)
+        {
+            builder.AddProvider(new FileLoggerDailyProvider());
+            return builder;
+        }
         
     }
 }

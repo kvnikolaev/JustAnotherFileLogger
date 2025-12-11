@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+[assembly: InternalsVisibleTo("JAFileLogging_Tests")]
 namespace JAFileLogging
 {
     internal class FileLoggerProcessor : IDisposable
@@ -14,12 +16,32 @@ namespace JAFileLogging
         private readonly Queue<LogMessageEntry> _messageQueue;
         private volatile int _messagesDropped;
         private bool _isAddingCompleted;
-        private const int _maxQueuedMessages = 2500; //!! что будет если превысить?
-
+        
         private readonly Thread _outputThread;
 
         private StreamWriter _errorOut;
         private StreamWriter _defaultOut;
+
+        private int _maxQueuedMessages = 2500;
+        public int MaxQueuedMessages
+        {
+            get => _maxQueuedMessages;
+            set
+            {
+                if (value <= 0)
+                {
+                    throw new ArgumentOutOfRangeException("Max queue size must be larger than zero.");
+                }
+
+                lock (_messageQueue)
+                {
+                    _maxQueuedMessages = value;
+                    Monitor.PulseAll(_messageQueue);
+                }
+            }
+        }
+
+
 
         public FileLoggerProcessor(StreamWriter outFile, StreamWriter errorFile)
         {
@@ -50,9 +72,11 @@ namespace JAFileLogging
             {
                 var fileOut = entry.LogAsError ? _errorOut : _defaultOut;
                 fileOut.Write(entry.Message);
+                Debug.Write("Logged message: " + entry.Message);
             }
             catch
             {
+                Debug.Write("Crashed while writing with message: " + entry.Message);
                 CompleteAdding();
             }
         }
@@ -65,7 +89,7 @@ namespace JAFileLogging
             }
         }
 
-        public bool Enqueue(LogMessageEntry item) //!! добавить лог сообщения о переполнении очереди
+        internal bool Enqueue(LogMessageEntry item)
         {
             lock (_messageQueue)
             {
@@ -73,8 +97,9 @@ namespace JAFileLogging
                 {
                     _messagesDropped++;
 
+                    Debug.Write($"Log message queue overflow. (with {_messageQueue.Count}) by item {item.Message}");
                     Debug.Assert(_messageQueue.Count >= _maxQueuedMessages, "Log message queue overflow.");
-                    Monitor.Wait(_messageQueue);
+                    return true;
                 }
 
                 if (!_isAddingCompleted)
@@ -84,7 +109,7 @@ namespace JAFileLogging
                     if (_messagesDropped > 0)
                     {
                         _messageQueue.Enqueue(new LogMessageEntry(
-                            Message: $"Log message queue overflow. Messages droped {_messagesDropped}.",
+                            Message: $"Log message queue overflow. Messages droped {_messagesDropped}." + Environment.NewLine,
                             LogAsError: true
                         ));
 
@@ -140,6 +165,19 @@ namespace JAFileLogging
         {
             CompleteAdding();
 
+            if (_messagesDropped > 0)
+            {
+                lock (_messageQueue)
+                {
+                    var droppedMsg = new LogMessageEntry(
+                                Message: $"Log message queue overflow. Messages droped {_messagesDropped}." + Environment.NewLine,
+                                LogAsError: true);
+                    Debug.Write("On dispose dropped " + _messagesDropped);
+                    _messageQueue.Enqueue(droppedMsg);
+                    _messagesDropped = 0;
+                }
+            }
+
             try
             {
                 _outputThread.Join(1500);
@@ -147,8 +185,8 @@ namespace JAFileLogging
             catch (ThreadStateException) { }
             finally
             {
-                _errorOut.Dispose();
-                _defaultOut.Dispose();
+                _errorOut?.Dispose();
+                _defaultOut?.Dispose();
             }
         }
 

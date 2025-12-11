@@ -21,14 +21,14 @@ namespace ConsoleApp1
             {
                 builder
                 .AddConsole()
-                .AddFile("log.txt");
+                .AddFile("log.txt")
+                .AddDailyFile();
             });
             _loggers = new Dictionary<string, ILogger>();
         }
 
         public static ILogger GetLogger(Type type)
         {
-            var t = nameof(type);
             if (!_loggers.ContainsKey(type.Name))
                 _loggers.Add(type.Name, _factory.CreateLogger(type));
 

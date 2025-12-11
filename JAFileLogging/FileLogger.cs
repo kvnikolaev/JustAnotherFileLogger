@@ -14,7 +14,7 @@ namespace JAFileLogging
 {
     internal class FileLogger : ILogger//, IBufferedLogger
     {
-        private readonly FileLoggerProcessor _messageQueue;
+        private FileLoggerProcessor _messageQueue;
         private readonly string _categoryName;
 
         internal FileLogFormatter Formatter { get; set; }
@@ -57,7 +57,7 @@ namespace JAFileLogging
             _messageQueue.EnqueueMessage(new LogMessageEntry(computedAnsiString, LogAsError: logLevel >= LogLevel.Error /*logLevel >= Options.LogToStandardErrorThreshold*/));
         }
 
-
+        // for IBufferedLogger
         /// <inheritdoc />
         //public void LogRecords(IEnumerable<BufferedLogRecord> records)
         //{
@@ -97,6 +97,11 @@ namespace JAFileLogging
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
             throw new NotImplementedException();
+        }
+
+        internal void ChangeLoggingProcessor(FileLoggerProcessor processor)
+        {
+            this._messageQueue = processor;
         }
     }
 }
