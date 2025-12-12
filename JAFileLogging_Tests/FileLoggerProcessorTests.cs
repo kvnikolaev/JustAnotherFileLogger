@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Console;
 
 namespace JAFileLogging_Tests
 {
-    public class Tests
+    public class FileLoggerProcessorTests
     {
         private const string _testFileName = "TestLog.log";
         private const string _errorFileName = "ErrorLog.log";
