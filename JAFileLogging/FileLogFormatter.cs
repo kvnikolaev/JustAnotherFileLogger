@@ -37,11 +37,7 @@ namespace JAFileLogging
 
             string? exceptionString = default;
             if (logEntry.Exception != null)
-            {
                 exceptionString = logEntry.Exception!.ToString();
-                exceptionString += Environment.NewLine;
-                exceptionString += logEntry.Exception.StackTrace;
-            }
             WriteInternal(textWriter, message ?? "", logEntry.LogLevel, logEntry.EventId.Id, exceptionString, logEntry.Category, GetCurrentDateTime());
         }
 
@@ -50,13 +46,16 @@ namespace JAFileLogging
         {
             string level = GetLogLevelString(logLevel);
             textWriter.Write(level);
-            textWriter.Write(":");
+            textWriter.Write(": ");
 
-            string time = string.Format(" [{0}] ", stamp.ToString("HH:mm:fff")); // FormatterOptions.TimestampFormat
+            string time = string.Format("[{0}]", stamp.ToString("HH:mm:fff")); // FormatterOptions.TimestampFormat
             textWriter.Write(time);
 
-            textWriter.Write("eventId=");
-            textWriter.Write(eventId.ToString());
+            if (eventId != 0)
+            {
+                textWriter.Write(" eventId=");
+                textWriter.Write(eventId.ToString());
+            }
 
             textWriter.Write(textSeparator);
             textWriter.Write(category);
