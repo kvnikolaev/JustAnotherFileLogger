@@ -19,6 +19,8 @@ namespace JAFileLogging
         protected ConcurrentDictionary<string, FileLogger> _loggers;
         protected FileLoggerProcessor _messageQueue;
 
+        private IExternalScopeProvider _scopeProvider = new AsyncScopeProvider();
+
         private string _filePath;
 
         public FileLoggerProvider(string? filePath /*optionMonitor*/)
@@ -53,7 +55,7 @@ namespace JAFileLogging
 
             return _loggers.TryGetValue(categoryName, out FileLogger? logger) ?
                 logger :
-                _loggers.GetOrAdd(categoryName, new FileLogger(categoryName, _messageQueue, logFormatter/*, _scopeProvider, _options.CurrentValue*/));
+                _loggers.GetOrAdd(categoryName, new FileLogger(categoryName, _messageQueue, logFormatter, _scopeProvider/*, _options.CurrentValue*/));
         }
 
         /// <inheritdoc />

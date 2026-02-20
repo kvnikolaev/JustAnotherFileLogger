@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
+using System.Text.RegularExpressions;
 
 namespace JAFileLogging_Tests
 {
@@ -84,7 +85,7 @@ namespace JAFileLogging_Tests
             var fileStream = new FileStream(_testFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             testFileOut = new StreamWriter(fileStream) { AutoFlush = true };
             var logProcessor = new FileLoggerProcessor(testFileOut, testFileOut);
-            var logger = new FileLogger("TestCategory", logProcessor, new FileLogFormatter());
+            var logger = new FileLogger("TestCategory", logProcessor, new FileLogFormatter(), new AsyncScopeProvider());
             // Act
             logProcessor.Dispose();
             logger.LogInformation("Logging after dispose");
@@ -100,7 +101,7 @@ namespace JAFileLogging_Tests
             var fileStream = new FileStream(_testFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             testFileOut = new StreamWriter(fileStream) { AutoFlush = false };  // AutoFlush must be false for dispose test
             var logProcessor = new FileLoggerProcessor(testFileOut, testFileOut);
-            var logger = new FileLogger(_categoryName, logProcessor, new FileLogFormatter());
+            var logger = new FileLogger(_categoryName, logProcessor, new FileLogFormatter(), new AsyncScopeProvider());
             
             // Act
             const int repetitions = 1000;
@@ -137,7 +138,7 @@ namespace JAFileLogging_Tests
             using var processor = new FileLoggerProcessor(testFileOut, errorFileOut);
             processor.MaxQueuedMessages = 3;
 
-            var logger = new FileLogger(_categoryName, processor, new FileLogFormatter());
+            var logger = new FileLogger(_categoryName, processor, new FileLogFormatter(), new AsyncScopeProvider());
             string messageTemplate = string.Join(", ", Enumerable.Range(1, 100).Select(x => "{A" + x + "}"));
             object[] messageParams = Enumerable.Range(1, 100).Select(x => (object)x).ToArray();
 
@@ -168,7 +169,7 @@ namespace JAFileLogging_Tests
             var errorFileOut = new WriteThrowingStream(new FileStream(_errorFileName, FileMode.Create, FileAccess.Write, FileShare.Read));
             using var processor = new FileLoggerProcessor(testFileOut, errorFileOut);
 
-            var logger = new FileLogger(_categoryName, processor, new FileLogFormatter());
+            var logger = new FileLogger(_categoryName, processor, new FileLogFormatter(), new AsyncScopeProvider());
 
             // Act
             logger.LogInformation("Process 1st log normally using {0}", _testFileName);
@@ -183,6 +184,77 @@ namespace JAFileLogging_Tests
 
             // Assert
             Assert.That(CountLines(_testFileName), Is.EqualTo(3));
+        }
+
+        [Test]
+        public void ScopeLogging()
+        {
+            // Arrange
+            var fileStream = new FileStream(_testFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
+            testFileOut = new TimesWriteCalledStream(fileStream) { AutoFlush = true };
+            var errorFileOut = new WriteThrowingStream(new FileStream(_errorFileName, FileMode.Create, FileAccess.Write, FileShare.Read));
+            using var processor = new FileLoggerProcessor(testFileOut, errorFileOut);
+
+            var logger = new FileLogger(_categoryName, processor, new FileLogFormatter(), new AsyncScopeProvider());
+
+            // Act
+            using (logger.BeginScope("TestScope"))
+            {
+                logger.LogInformation("In Test Scope");
+                using var t = logger.BeginScope("NestedScope"); 
+                logger.LogInformation("In Nested Scope");
+            }
+            logger.LogInformation("Out Scope");
+            processor.Dispose();
+
+            // Assert
+            var logs = File.ReadLines(_testFileName).TakeLast(3).ToArray();
+
+            Match result;
+            result = Regex.Match(logs[0], "TestScope.+In Test Scope");
+            Assert.IsTrue(result.Success);
+            result = Regex.Match(logs[1], "TestScope.+NestedScope.+In Nested Scope");
+            Assert.IsTrue(result.Success);
+            result = Regex.Match(logs[2], "(?!Scope).+Out Scope");
+            Assert.IsTrue(result.Success);
+        }
+
+        [Test]
+        public async Task StackingLogScopes_WhenAsync()
+        {
+            // Arrange
+            FileLoggerProvider provider = new FileLoggerProvider(_testFileName);
+            var logger = provider.CreateLogger(_categoryName);
+            
+            // Act
+            logger.LogInformation("Before Scope");
+            using var scope = logger.BeginScope("FirstScope");
+            logger.LogInformation("In Scope");
+            var t = SomeOutMethod(provider);
+            logger.LogInformation("Again In First Scope");
+            await t;
+            provider.Dispose();
+
+            // Assert
+            var logs = File.ReadLines(_testFileName).TakeLast(4).ToArray();
+
+            Match result;
+            result = Regex.Match(logs[0], "(?!Scope).+Before Scope");
+            Assert.IsTrue(result.Success);
+            result = Regex.Match(logs[1], "FirstScope.+In Scope");
+            Assert.IsTrue(result.Success);
+            result = Regex.Match(logs[2], "FirstScope.+(?!Scope).*Again In First Scope");
+            Assert.IsTrue(result.Success);
+            result = Regex.Match(logs[3], "FirstScope.+NestedScope.+In Nested Scope");
+            Assert.IsTrue(result.Success);
+        }
+
+        private async Task SomeOutMethod(FileLoggerProvider provider)
+        {
+            var logger = provider.CreateLogger("InsideSomeMethod");
+            using var t = logger.BeginScope("NestedScope");
+            await Task.Delay(1000);
+            logger.LogInformation("In Nested Scope");
         }
 
         #region Test helpers

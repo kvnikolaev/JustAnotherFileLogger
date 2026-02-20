@@ -20,7 +20,7 @@ namespace ConsoleApp1
             _factory = LoggerFactory.Create(builder =>
             {
                 builder
-                .AddConsole()
+                .AddConsole(options => options.IncludeScopes = true)
                 .AddFile("log.txt")
                 .AddDailyFile();
             });

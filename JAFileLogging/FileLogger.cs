@@ -18,12 +18,14 @@ namespace JAFileLogging
         private readonly string _categoryName;
 
         internal FileLogFormatter Formatter { get; set; }
+        internal IExternalScopeProvider? ScopeProvider { get; set; }
 
-        public FileLogger(string categoryName, FileLoggerProcessor processor, FileLogFormatter formatter)
+        public FileLogger(string categoryName, FileLoggerProcessor processor, FileLogFormatter formatter, IExternalScopeProvider? scopeProvider)
         {
             _categoryName = categoryName;
             _messageQueue = processor;
             Formatter = formatter;
+            ScopeProvider = scopeProvider;
         }
 
 
@@ -41,7 +43,7 @@ namespace JAFileLogging
 
             t_stringWriter ??= new StringWriter();
             LogEntry<TState> logEntry = new LogEntry<TState>(logLevel, _categoryName, eventId, state, exception, formatter);
-            Formatter.Write(in logEntry, /*ScopeProvider,*/ t_stringWriter);
+            Formatter.Write(in logEntry, ScopeProvider, t_stringWriter);
 
             var sb = t_stringWriter.GetStringBuilder();
             if (sb.Length == 0)
@@ -96,7 +98,7 @@ namespace JAFileLogging
         /// <inheritdoc />
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
-            throw new NotImplementedException();
+            return ScopeProvider?.Push(state);
         }
 
         internal void ChangeLoggingProcessor(FileLoggerProcessor processor)

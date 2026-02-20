@@ -25,7 +25,7 @@ namespace JAFileLogging
 
         public virtual void Write<TState>(
             in LogEntry<TState> logEntry,
-            //IExternalScopeProvider? scopeProvider,
+            IExternalScopeProvider? scopeProvider,
             TextWriter textWriter)
         {
             string? message = logEntry.Formatter?.Invoke(
@@ -38,10 +38,10 @@ namespace JAFileLogging
             string? exceptionString = default;
             if (logEntry.Exception != null)
                 exceptionString = logEntry.Exception!.ToString();
-            WriteInternal(textWriter, message ?? "", logEntry.LogLevel, logEntry.EventId.Id, exceptionString, logEntry.Category, GetCurrentDateTime());
+            WriteInternal(scopeProvider, textWriter, message ?? "", logEntry.LogLevel, logEntry.EventId.Id, exceptionString, logEntry.Category, GetCurrentDateTime());
         }
 
-        private void WriteInternal(TextWriter textWriter, string message, LogLevel logLevel,
+        private void WriteInternal(IExternalScopeProvider? scopeProvider, TextWriter textWriter, string message, LogLevel logLevel,
             int eventId, string? exception, string category, DateTimeOffset stamp)
         {
             string level = GetLogLevelString(logLevel);
@@ -50,6 +50,8 @@ namespace JAFileLogging
 
             string time = string.Format("[{0}]", stamp.ToString("HH:mm:fff")); // FormatterOptions.TimestampFormat
             textWriter.Write(time);
+
+            WriteScopeInformation(textWriter, scopeProvider);
 
             if (eventId != 0)
             {
@@ -87,6 +89,22 @@ namespace JAFileLogging
             _ => throw new ArgumentOutOfRangeException(nameof(logLevel))
         };
 
+        private void WriteScopeInformation(TextWriter textWriter, IExternalScopeProvider? scopeProvider)
+        {
+            if (scopeProvider != null)
+            {
+                scopeProvider.ForEachScope((scope, state) => //!! в методе добавить пробелы и запятые если список scope не пустой
+                {
+                    if (scope != null)
+                    {
+                        state.Write("{");
+                        state.Write(scope.ToString());
+                        state.Write("}");
+                    }
+
+                }, textWriter);
+            }
+        }
         //public void Dispose() => _optionsReloadToken?.Dispose();
     }
 }

@@ -33,6 +33,8 @@ namespace JAFileLogging_Tests
             provider.ForceChangeLogFilePath(DateTime.Now.AddDays(offset++));
             logger.LogInformation("Third log");
 
+            provider.Dispose();
+
             // Assert
             var logFiles = Directory.GetFiles(FileLoggerDailyProvider._logDirectory, "*.log");
             Assert.That(logFiles.Length, Is.EqualTo(offset));
